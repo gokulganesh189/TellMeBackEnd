@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8
+    container_name: tell_me_mariadb
+    restart: always
+    volumes:
+      - data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "Shift$$09"
+      MYSQL_DATABASE: TellMe
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pShift$$09"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: tell_me_redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: tell_me_backend
+    command: >
+      sh -c "python3 manage.py migrate --noinput &&
+             python3 manage.py runserver 0.0.0.0:8001"
+    restart: always
+    volumes:
+      - .:/app
+    ports:
+      - "8001:8001"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  celery:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: tell_me_celery
+    command: >
+      sh -c "celery -A TellMe worker --loglevel=info"
+    restart: always
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  data:
